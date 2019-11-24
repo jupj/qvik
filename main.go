@@ -416,9 +416,8 @@ func (f *fileBuffer) insertRune(c rune) {
 	if f.cy == len(f.row) {
 		f.insertRow(len(f.row), nil)
 	}
-	size := f.row[f.cy].insertRune(f.cx, c)
+	f.cx += f.row[f.cy].insertRune(f.cx, c)
 	f.dirty++
-	f.cx += size
 }
 
 func (f *fileBuffer) insertNewLine() {
@@ -465,24 +464,13 @@ func (f *fileBuffer) size() int64 {
 }
 
 func (f *fileBuffer) WriteTo(w io.Writer) (n int64, err error) {
-	n = 0
-	for i, row := range f.row {
-		if i > 0 {
-			m, err := w.Write([]byte(newline))
-			n += int64(m)
-			if err != nil {
-				return n, err
-			}
-		}
-
-		m, err := w.Write(row.chars)
-		n += int64(m)
-		if err != nil {
-			return n, err
-		}
-
+	var lineN int
+	// Loop all lines, or until an error occurs
+	for i := 0; i < len(f.row) && err == nil; i++ {
+		lineN, err = fmt.Fprintf(w, "%s%s", f.row[i].chars, newline)
+		n += int64(lineN)
 	}
-	return n, nil
+	return n, err
 }
 
 func newFileBuffer(filename string) (fileBuffer, error) {
@@ -496,22 +484,14 @@ func newFileBuffer(filename string) (fileBuffer, error) {
 	}
 	defer file.Close()
 
-	r := bufio.NewReader(file)
-	for {
-		line, err := r.ReadBytes('\n')
-		if err != io.EOF && err != nil {
-			return fileBuffer{}, err
-		}
-
-		line = bytes.TrimRight(line, "\r\n")
-		f.insertRow(len(f.row), line)
-
-		if err == io.EOF {
-			break
-		}
+	s := bufio.NewScanner(file)
+	for s.Scan() {
+		f.insertRow(len(f.row), s.Bytes())
 	}
+	// Mark non-dirty after inserting all rows
 	f.dirty = 0
-	return f, nil
+
+	return f, s.Err()
 }
 
 func (e *editorConfig) save() error {
@@ -535,8 +515,7 @@ func (f *fileBuffer) save() (n int64, err error) {
 	}
 	defer file.Close()
 
-	err = file.Truncate(f.size())
-	if err != nil {
+	if err := file.Truncate(f.size()); err != nil {
 		return 0, err
 	}
 	n, err = f.WriteTo(file)
@@ -576,8 +555,7 @@ func (e *editorConfig) execCmd(cmd string) error {
 	// Split these and run them recursively
 	cmds := strings.SplitN(cmd, "|", 2)
 	if len(cmds) > 1 {
-		err := e.execCmd(cmds[0])
-		if err != nil {
+		if err := e.execCmd(cmds[0]); err != nil {
 			return err
 		}
 		return e.execCmd(cmds[1])
@@ -1290,8 +1268,7 @@ func run(args ...string) error {
 }
 
 func main() {
-	err := run(os.Args[1:]...)
-	if err != nil {
+	if err := run(os.Args[1:]...); err != nil {
 		fmt.Fprintf(os.Stderr, "Exit with error: %v\n", err)
 		os.Exit(1)
 	}
