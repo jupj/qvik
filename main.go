@@ -1026,7 +1026,7 @@ type errNoMatch error
 var composedCmds = map[rune]string{
 	'I': "0i",
 	'A': "$a",
-	'o': "jO",
+	'o': "A\r",
 	'x': "{count}dl",
 	'X': "{count}dh",
 	's': "{count}l{count}dhi",
