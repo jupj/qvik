@@ -142,20 +142,6 @@ type editorConfig struct {
 var (
 	hlDB = []editorSyntax{
 		{
-			"c",
-			[]string{".c", ".h", ".cpp"},
-			[]syntaxClass{
-				{hlNumber, r("(?i)\\b[0-9]x?[0-9a-f.]*(flu)*"), nil, nil},
-				{hlComment, r("//.*"), nil, nil},
-				{hlComment, r(`/\*`), r(`(\*[^/]|[^*])*`), r(`\*/`)},
-				{hlString, r("'"), r("\\.|[^\\'\n]*"), r("'")},
-				{hlString, r(`"`), r(`(\\.|[^\\"\n])*`), r(`"`)},
-				{hlKeyword1, rKW("switch", "if", "while", "for", "break", "continue", "return", "else",
-					"struct", "union", "typedef", "static", "enum", "class", "case"), nil, nil},
-				{hlKeyword2, rKW("int", "long", "double", "float", "char", "unsigned", "signed", "void"), nil, nil},
-			},
-		},
-		{
 			"go",
 			[]string{".go"},
 			[]syntaxClass{
@@ -172,9 +158,7 @@ var (
 					"continue", "for", "import", "return", "var"), nil, nil},
 				{hlKeyword2, rKW(
 					// Types:
-					"bool", "byte", "complex64", "complex128", "error", "float32", "float64",
-					"int", "int8", "int16", "int32", "int64", "rune", "string",
-					"uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
+					"bool", "byte", "complex(64|128)", "error", "float(32|64)", "rune", "string", "u?int(8|16|32|64)?", "uintptr",
 
 					// Constants:
 					"true", "false", "iota",
