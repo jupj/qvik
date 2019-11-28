@@ -301,14 +301,8 @@ func (r *erow) cxToRx(cx int) int {
 	if cx > len(r.chars) {
 		cx = len(r.chars)
 	}
-	buf := bytes.NewBuffer(r.chars[:cx])
 
-	for buf.Len() > 0 {
-		c, _, err := buf.ReadRune()
-		if err != nil {
-			panic(err)
-		}
-
+	for _, c := range bytes.Runes(r.chars[:cx]) {
 		if c == '\t' {
 			rx += (tabStop - 1) - (rx % tabStop)
 		}
