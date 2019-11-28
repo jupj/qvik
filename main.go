@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -451,18 +452,7 @@ func (f *fileBuffer) delRune() {
 
 /*** file i/o ***/
 
-// size returns the file size in bytes
-func (f *fileBuffer) size() int64 {
-	size := int64(0)
-	for i, row := range f.row {
-		if i > 0 {
-			size += int64(len(newline))
-		}
-		size += int64(len(row.chars))
-	}
-	return size
-}
-
+// WriteTo writes the contents of f to w.
 func (f *fileBuffer) WriteTo(w io.Writer) (n int64, err error) {
 	var lineN int
 	// Loop all lines, or until an error occurs
@@ -494,16 +484,6 @@ func newFileBuffer(filename string) (fileBuffer, error) {
 	return f, s.Err()
 }
 
-func (e *editorConfig) save() error {
-	n, err := e.fileBuffer.save()
-	if err != nil {
-		return fmt.Errorf("Can't save file: %w", err)
-	}
-
-	e.setStatusMessage("%d bytes written to disk", n)
-	return nil
-}
-
 func (f *fileBuffer) save() (n int64, err error) {
 	if f.filename == "" {
 		return 0, errors.New("no filename specified")
@@ -515,7 +495,8 @@ func (f *fileBuffer) save() (n int64, err error) {
 	}
 	defer file.Close()
 
-	if err := file.Truncate(f.size()); err != nil {
+	size, _ := f.WriteTo(ioutil.Discard)
+	if err := file.Truncate(size); err != nil {
 		return 0, err
 	}
 	n, err = f.WriteTo(file)
@@ -628,7 +609,11 @@ func (e *editorConfig) execCmd(cmd string) error {
 			}
 			e.filename = params[0]
 		}
-		return e.save()
+		n, err := e.fileBuffer.save()
+		if err != nil {
+			return fmt.Errorf("Can't save file: %w", err)
+		}
+		e.setStatusMessage("%d bytes written to disk", n)
 	case "wq":
 		return e.execCmd("write|quit")
 	case "yank", "ya":
