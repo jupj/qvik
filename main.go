@@ -862,10 +862,10 @@ func (im insertMode) Process(e *editorConfig, input []byte) (next mode, err erro
 
 	switch c {
 	case homeKey:
-		_, err = new(normalMode).Process(e, []byte("0"))
+		_, err = e.execNormCmd([]byte("0"))
 
 	case endKey:
-		_, err = new(normalMode).Process(e, []byte("$"))
+		_, err = e.execNormCmd([]byte("$"))
 
 	case backspace, ctrlKey('h'):
 		if e.cx == 0 && e.cy > 0 {
@@ -914,9 +914,9 @@ func (nm *normalMode) Process(e *editorConfig, input []byte) (next mode, err err
 	nm.buf.WriteRune(c)
 	input = input[n:]
 
-	cmd, n, err := parseCmd(nm.buf.Bytes())
+	next, err = e.execNormCmd(nm.buf.Bytes())
 	if err == io.EOF {
-		// The command buffer is incomplete
+		// The command buffer is incomplete, consume more input
 		return nm.Process(e, input)
 	}
 
@@ -925,10 +925,6 @@ func (nm *normalMode) Process(e *editorConfig, input []byte) (next mode, err err
 		return nm, err
 	}
 
-	next, err = cmd.Exec(e)
-	if err != nil {
-		return nm, err
-	}
 	return next.Process(e, input)
 }
 
@@ -1146,37 +1142,35 @@ func (nCmd normCmd) motion(e *editorConfig) (pos, error) {
 	return pos{}, errNoMatch(fmt.Errorf("unknown motion command %q", nCmd.cmd))
 }
 
-// parseCmd parses a normCmd from input
-func parseCmd(input []byte) (normCmd, int, error) {
+// execNormCmd parses a normCmd from input and executes it.
+// The next mode is returned, if an error occurred, next = nil.
+func (e *editorConfig) execNormCmd(input []byte) (next mode, err error) {
 	// Parse count:
 	cmd := normCmd{count: 1}
-	var n, size int
 	if match := regexp.MustCompile(`^[1-9][0-9]*`).Find(input); len(match) > 0 {
 		cmd.count, _ = strconv.Atoi(string(match))
-		n += len(match)
+		input = input[len(match):]
 	}
 
 	// Parse command:
-	if len(input[n:]) == 0 {
-		return cmd, n, io.EOF
+	if len(input) == 0 {
+		return nil, io.EOF
 	}
-	match := regexp.MustCompile(`^[0$/:aACdDfFhiIjJklnNoOpPrstxXy\x1b]`).Find(input[n:])
-	if len(match) == 0 {
-		return normCmd{}, n, fmt.Errorf("could not parse command %q", input[n:])
+	if match := regexp.MustCompile(`^[0$/:aACdDfFhiIjJklnNoOpPrstxXy\x1b]`).Find(input); len(match) == 0 {
+		return nil, fmt.Errorf("could not parse command %q", input)
 	}
-	cmd.cmd, size = utf8.DecodeRune(input[n:])
-	n += size
+	c, size := utf8.DecodeRune(input)
+	cmd.cmd, input = c, input[size:]
 
 	// Parse command parameter if needed:
 	if strings.ContainsRune("fFtTrdyc", cmd.cmd) {
-		if len(input[n:]) == 0 {
-			return cmd, n, io.EOF
+		if !utf8.FullRune(input) {
+			return nil, io.EOF
 		}
-		cmd.param, size = utf8.DecodeRune(input[n:])
-		n += size
+		cmd.param, _ = utf8.DecodeRune(input)
 	}
 
-	return cmd, n, nil
+	return cmd.Exec(e)
 }
 
 /*** init ***/
