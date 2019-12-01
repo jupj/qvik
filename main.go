@@ -388,10 +388,6 @@ func (r *erow) delRune(at int) int {
 /*** editor operations ***/
 
 func (f *fileBuffer) insertRune(c rune) {
-	if c == '\r' {
-		f.insertNewLine()
-		return
-	}
 	if f.cy == len(f.row) {
 		f.insertRow(len(f.row), nil)
 	}
@@ -873,6 +869,9 @@ func (im insertMode) Process(e *editorConfig, input []byte) (next mode, err erro
 	case ctrlKey('l'), '\x1b':
 		return new(normalMode).Process(e, input[n:])
 
+	case '\r':
+		e.insertNewLine()
+
 	default:
 		e.insertRune(c)
 	}
@@ -986,6 +985,7 @@ var composedCmds = map[rune]string{
 	'I': "0i",
 	'A': "$a",
 	'o': "A\r",
+	'O': "0i\r\x1bki",
 	'x': "{count}dl",
 	'X': "{count}dh",
 	's': "{count}l{count}dhi",
@@ -994,6 +994,7 @@ var composedCmds = map[rune]string{
 	'C': "d$i",
 	'P': ":put\r",
 	'J': ":join\r",
+	'r': "s{param}\x1b",
 }
 
 type normCmd struct {
@@ -1005,7 +1006,7 @@ type normCmd struct {
 func (nCmd normCmd) Exec(e *editorConfig) (next mode, err error) {
 	// Composed commands:
 	if cmdStr, ok := composedCmds[nCmd.cmd]; ok {
-		return new(normalMode).Process(e, []byte(strings.ReplaceAll(cmdStr, "{count}", strconv.Itoa(nCmd.count))))
+		return new(normalMode).Process(e, []byte(strings.ReplaceAll(strings.ReplaceAll(cmdStr, "{count}", strconv.Itoa(nCmd.count)), "{param}", string(nCmd.param))))
 	}
 
 	// Primitive commands
@@ -1018,10 +1019,6 @@ func (nCmd normCmd) Exec(e *editorConfig) (next mode, err error) {
 		if e.cy < len(e.row) && e.cx < e.rowLen(e.cy) {
 			e.cx++
 		}
-		return insertMode{}, nil
-	case 'O':
-		e.insertRow(e.cy, nil)
-		e.cx = 0
 		return insertMode{}, nil
 	case ':', '/':
 		// Store pre-search UI state
@@ -1038,10 +1035,6 @@ func (nCmd normCmd) Exec(e *editorConfig) (next mode, err error) {
 		// Go to command mode
 		e.setStatusMessage(string(nCmd.cmd))
 		return &commandMode{typ: nCmd.cmd}, nil
-	case 'r':
-		e.delRune()
-		e.insertRune(nCmd.param)
-		e.moveCursor(arrowLeft)
 
 	case 'y':
 		if nCmd.param != 'y' {
