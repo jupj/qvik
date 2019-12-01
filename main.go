@@ -340,11 +340,10 @@ func (f *fileBuffer) insertRow(at int, s []byte) {
 	}
 
 	for i, s := range bytes.Split(s, []byte(newline)) {
-		// Create row with chars: s
-		row := erow{chars: make([]byte, len(s))}
-		copy(row.chars, s)
-		// Insert row
-		f.row = append(f.row[:at+i], append([]erow{row}, f.row[at+i:]...)...)
+		// Insert row - allocate chars for length of s
+		f.row = append(f.row[:at+i], append([]erow{{chars: make([]byte, len(s))}}, f.row[at+i:]...)...)
+		// Copy row chars from: s
+		copy(f.row[at+i].chars, s)
 	}
 
 	f.dirty++
@@ -625,16 +624,15 @@ func (e *editorConfig) scroll(rx, cy int) {
 	if cy < e.rowoff {
 		// Scroll upwards
 		e.rowoff = cy
-	}
-	if cy >= e.rowoff+e.screenRows {
+	} else if cy >= e.rowoff+e.screenRows {
 		// Scroll downwards
 		e.rowoff = cy - e.screenRows + 1
 	}
+
 	if rx < e.coloff {
 		// Scroll left
 		e.coloff = rx
-	}
-	if rx >= e.coloff+e.screenCols {
+	} else if rx >= e.coloff+e.screenCols {
 		// Scroll right
 		e.coloff = rx - e.screenCols + 1
 	}
@@ -680,8 +678,7 @@ func (e *editorConfig) drawRows(w io.Writer) {
 			rowLen := len(rendered) - e.coloff
 			if rowLen < 0 {
 				rowLen = 0
-			}
-			if rowLen > e.screenCols {
+			} else if rowLen > e.screenCols {
 				rowLen = e.screenCols
 			}
 
@@ -713,8 +710,8 @@ func (e *editorConfig) drawRows(w io.Writer) {
 			}
 		}
 
-		fmt.Fprintf(w, "\x1b[K") // erase line to the right of cursor
-		fmt.Fprintf(w, "\r\n")
+		// erase line to the right of cursor and append line break
+		fmt.Fprintf(w, "\x1b[K\r\n")
 	}
 }
 
@@ -1154,13 +1151,12 @@ func newEditor() (*editorConfig, error) {
 
 	// use VT100 sequences to find window size
 	fmt.Print("\x1b[999C\x1b[999B") // move cursor to bottom right
-	var err error
-	e.screenRows, e.screenCols, err = e.getCursorPosition()
+	rows, cols, err := e.getCursorPosition()
 	if err != nil {
 		return nil, fmt.Errorf("newEditor failed with error: %v", err)
 	}
 
-	e.screenRows -= 2
+	e.screenRows, e.screenCols = rows-2, cols
 	return e, nil
 }
 
@@ -1172,8 +1168,7 @@ func run(args ...string) error {
 	fmt.Print("\x1b[?1049h") // switch to alternate screen
 	defer func() {
 		// Clean up screen and disable raw mode
-		fmt.Print("\x1b[2J")     // clear screen
-		fmt.Print("\x1b[?1049l") // close alternate screen
+		fmt.Print("\x1b[2J\x1b[?1049l") // clear and close alternate screen
 		disableRawMode()
 	}()
 
