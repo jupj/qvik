@@ -1,9 +1,12 @@
-// +build windows
+//go:build windows
 
 package main
 
-import "os"
-import "golang.org/x/sys/windows"
+import (
+	"os"
+
+	"golang.org/x/sys/windows"
+)
 
 // setMode configures console mode flags for fd and returns a restore function.
 // If err == nil, restore will restore fd to it's previous mode.
